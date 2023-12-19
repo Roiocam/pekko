@@ -424,17 +424,10 @@ private[stream] object Collect {
       import shape.{ in, out }
 
       // Initial behavior makes sure that the zero gets flushed if upstream is empty
-      setHandler(out,
-        new OutHandler {
-          override def onPull(): Unit = {
-            push(out, aggregator)
-            setHandlers(in, out, self)
-          }
-        })
-
-      setHandler(
+      setHandlers(
         in,
-        new InHandler {
+        out,
+        new InHandler with OutHandler {
           override def onPush(): Unit = ()
 
           override def onUpstreamFinish(): Unit =
@@ -445,6 +438,11 @@ private[stream] object Collect {
                   completeStage()
                 }
               })
+
+          override def onPull(): Unit = {
+            push(out, aggregator)
+            setHandlers(in, out, self)
+          }
         })
 
       override def onPull(): Unit = pull(in)
@@ -664,7 +662,7 @@ private[stream] object Collect {
 
   def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
     new GraphStageLogic(shape) with InHandler with OutHandler {
-      val decider = inheritedAttributes.mandatoryAttribute[SupervisionStrategy].decider
+      lazy val decider = inheritedAttributes.mandatoryAttribute[SupervisionStrategy].decider
 
       private var aggregator: Out = zero
       private var aggregating: Future[Out] = Future.successful(aggregator)
@@ -1402,8 +1400,7 @@ private[stream] object Collect {
     new GraphStageLogic(shape) with InHandler with OutHandler {
       override def toString = s"MapAsyncUnordered.Logic(inFlight=$inFlight, buffer=$buffer)"
 
-      private val decider =
-        inheritedAttributes.mandatoryAttribute[SupervisionStrategy].decider
+      private lazy val decider = inheritedAttributes.mandatoryAttribute[SupervisionStrategy].decider
 
       private var inFlight = 0
       private var buffer: BufferImpl[Out] = _

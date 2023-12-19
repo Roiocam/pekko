@@ -569,6 +569,36 @@ public class SourceTest extends StreamTest {
   }
 
   @Test
+  public void mustBeAbleToUseMapAsyncPartitioned() throws Exception {
+    final TestKit probe = new TestKit(system);
+    final Iterable<String> input = Arrays.asList("2c", "1a", "1b");
+    Source.from(input)
+        .mapAsyncPartitioned(
+            4,
+            elem -> elem.substring(0, 1),
+            (elem, p) -> CompletableFuture.completedFuture(elem.toUpperCase()))
+        .runForeach(elem -> probe.getRef().tell(elem, ActorRef.noSender()), system);
+    probe.expectMsgEquals("2C");
+    probe.expectMsgEquals("1A");
+    probe.expectMsgEquals("1B");
+  }
+
+  @Test
+  public void mustBeAbleToUseMapAsyncPartitionedUnordered() throws Exception {
+    final TestKit probe = new TestKit(system);
+    final Iterable<String> input = Arrays.asList("1a", "1b", "2c");
+    Source.from(input)
+        .mapAsyncPartitionedUnordered(
+            4,
+            elem -> elem.substring(0, 1),
+            (elem, p) -> CompletableFuture.completedFuture(elem.toUpperCase()))
+        .runForeach(elem -> probe.getRef().tell(elem, ActorRef.noSender()), system);
+    probe.expectMsgEquals("1A");
+    probe.expectMsgEquals("1B");
+    probe.expectMsgEquals("2C");
+  }
+
+  @Test
   public void mustBeAbleToUseCollectType() throws Exception {
     final TestKit probe = new TestKit(system);
     final Iterable<FlowSpec.Apple> input = Collections.singletonList(new FlowSpec.Apple());
@@ -936,6 +966,19 @@ public class SourceTest extends StreamTest {
     // elements from source1 (i.e. first of combined source) come first, then source2 elements, due
     // to `Concat`
     probe.expectMsgAllOf(0, 1, 2, 3);
+  }
+
+  @Test
+  public void mustBeAbleToCombineN() throws Exception {
+    final Source<Integer, NotUsed> source1 = Source.single(1);
+    final Source<Integer, NotUsed> source2 = Source.single(2);
+    final Source<Integer, NotUsed> source3 = Source.single(3);
+    final List<Source<Integer, NotUsed>> sources = Arrays.asList(source1, source2, source3);
+    final CompletionStage<Integer> result =
+        Source.combine(sources, Concat::create)
+            .runWith(Sink.collect(Collectors.toList()), system)
+            .thenApply(list -> list.stream().mapToInt(l -> l).sum());
+    assertEquals(6, result.toCompletableFuture().get(3, TimeUnit.SECONDS).intValue());
   }
 
   @SuppressWarnings("unchecked")

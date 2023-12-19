@@ -489,7 +489,7 @@ object ActorSystem {
     /**
      * Returns the String representation of the Config that this Settings is backed by
      */
-    override def toString: String = config.root.render
+    override def toString: String = config.renderWithRedactions()
 
   }
 
@@ -847,7 +847,7 @@ private[pekko] class ActorSystemImpl(
                 s"""Detected ${cause.getClass.getName} error, which MAY be caused by incompatible Pekko versions on the classpath.
                   | Please note that a given Pekko version MUST be the same across all modules of Pekko that you are using,
                   | e.g. if you use pekko-actor [${pekko.Version.current} (resolved from current classpath)] all other core
-                  | Akka modules MUST be of the same version. External projects like Connectors, Persistence plugins or Pekko
+                  | Pekko modules MUST be of the same version. External projects like Connectors, Persistence plugins or Pekko
                   | HTTP etc. have their own version numbers - please make sure you're using a compatible set of libraries.
                  """.stripMargin.replaceAll("[\r\n]", ""))
 

@@ -25,8 +25,6 @@ import scala.concurrent.{ Future, Promise }
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
 
-import org.reactivestreams.{ Publisher, Subscriber }
-
 import org.apache.pekko
 import pekko.{ Done, NotUsed }
 import pekko.actor.{ ActorRef, Cancellable, ClassicActorSystemProvider }
@@ -42,6 +40,8 @@ import pekko.util.FutureConverters._
 import pekko.util.JavaDurationConverters._
 import pekko.util.OptionConverters._
 import pekko.util.ccompat.JavaConverters._
+
+import org.reactivestreams.{ Publisher, Subscriber }
 
 /** Java API */
 object Source {
@@ -432,7 +432,7 @@ object Source {
    * completion.
    *
    * The stream can be completed with failure by sending a message that is matched by `failureMatcher`. The extracted
-   * [[Throwable]] will be used to fail the stream. In case the Actor is still draining its internal buffer (after having received
+   * [[java.lang.Throwable]] will be used to fail the stream. In case the Actor is still draining its internal buffer (after having received
    * a message matched by `completionMatcher`) before signaling completion and it receives a message matched by `failureMatcher`,
    * the failure will be signaled downstream immediately (instead of the completion signal).
    *
@@ -528,7 +528,7 @@ object Source {
    * The stream will complete with failure if a message is sent before the acknowledgement has been replied back.
    *
    * The stream can be completed with failure by sending a message that is matched by `failureMatcher`. The extracted
-   * [[Throwable]] will be used to fail the stream. In case the Actor is still draining its internal buffer (after having received
+   * [[java.lang.Throwable]] will be used to fail the stream. In case the Actor is still draining its internal buffer (after having received
    * a message matched by `completionMatcher`) before signaling completion and it receives a message matched by `failureMatcher`,
    * the failure will be signaled downstream immediately (instead of the completion signal).
    *
@@ -562,7 +562,7 @@ object Source {
    * The stream will complete with failure if a message is sent before the acknowledgement has been replied back.
    *
    * The stream can be completed with failure by sending a message that is matched by `failureMatcher`. The extracted
-   * [[Throwable]] will be used to fail the stream. In case the Actor is still draining its internal buffer (after having received
+   * [[java.lang.Throwable]] will be used to fail the stream. In case the Actor is still draining its internal buffer (after having received
    * a message matched by `completionMatcher`) before signaling completion and it receives a message matched by `failureMatcher`,
    * the failure will be signaled downstream immediately (instead of the completion signal).
    *
@@ -656,10 +656,12 @@ object Source {
       first: Source[T, _ <: Any],
       second: Source[T, _ <: Any],
       rest: java.util.List[Source[T, _ <: Any]],
-      strategy: function.Function[java.lang.Integer, _ <: Graph[UniformFanInShape[T, U], NotUsed]])
+      @nowarn
+      @deprecatedName(Symbol("strategy"))
+      fanInStrategy: function.Function[java.lang.Integer, _ <: Graph[UniformFanInShape[T, U], NotUsed]])
       : Source[U, NotUsed] = {
     val seq = if (rest != null) Util.immutableSeq(rest).map(_.asScala) else immutable.Seq()
-    new Source(scaladsl.Source.combine(first.asScala, second.asScala, seq: _*)(num => strategy.apply(num)))
+    new Source(scaladsl.Source.combine(first.asScala, second.asScala, seq: _*)(num => fanInStrategy.apply(num)))
   }
 
   /**
@@ -668,10 +670,30 @@ object Source {
   def combineMat[T, U, M1, M2, M](
       first: Source[T, M1],
       second: Source[T, M2],
-      strategy: function.Function[java.lang.Integer, _ <: Graph[UniformFanInShape[T, U], NotUsed]],
+      @nowarn
+      @deprecatedName(Symbol("strategy"))
+      fanInStrategy: function.Function[java.lang.Integer, _ <: Graph[UniformFanInShape[T, U], NotUsed]],
       combine: function.Function2[M1, M2, M]): Source[U, M] = {
     new Source(
-      scaladsl.Source.combineMat(first.asScala, second.asScala)(num => strategy.apply(num))(combinerToScala(combine)))
+      scaladsl.Source.combineMat(first.asScala, second.asScala)(num => fanInStrategy.apply(num))(
+        combinerToScala(combine)))
+  }
+
+  /**
+   * Combines several sources with fan-in strategy like [[Merge]] or [[Concat]] into a single [[Source]].
+   * @since 1.1.0
+   */
+  def combine[T, U, M](
+      sources: java.util.List[_ <: Graph[SourceShape[T], M]],
+      fanInStrategy: function.Function[java.lang.Integer, Graph[UniformFanInShape[T, U], NotUsed]])
+      : Source[U, java.util.List[M]] = {
+    val seq = if (sources != null) Util.immutableSeq(sources).collect {
+      case source: Source[T @unchecked, M @unchecked] => source.asScala
+      case other                                      => other
+    }
+    else immutable.Seq()
+    import org.apache.pekko.util.ccompat.JavaConverters._
+    new Source(scaladsl.Source.combine(seq)(size => fanInStrategy(size)).mapMaterializedValue(_.asJava))
   }
 
   /**
@@ -2492,6 +2514,72 @@ final class Source[Out, Mat](delegate: scaladsl.Source[Out, Mat]) extends Graph[
    */
   def mapAsync[T](parallelism: Int, f: function.Function[Out, CompletionStage[T]]): javadsl.Source[T, Mat] =
     new Source(delegate.mapAsync(parallelism)(x => f(x).asScala))
+
+  /**
+   * Transforms this stream. Works very similarly to [[#mapAsync]] but with an additional
+   * partition step before the transform step. The transform function receives the an individual
+   * stream entry and the calculated partition value for that entry. The max parallelism of per partition is 1.
+   *
+   * The function `partitioner` is always invoked on the elements in the order they arrive.
+   * The function `f` is always invoked on the elements which in the same partition in the order they arrive.
+   *
+   * If the function `partitioner` or `f` throws an exception or if the [[CompletionStage]] is completed
+   * with failure and the supervision decision is [[pekko.stream.Supervision.Stop]]
+   * the stream will be completed with failure, otherwise the stream continues and the current element is dropped.
+   *
+   * Adheres to the [[ActorAttributes.SupervisionStrategy]] attribute.
+   *
+   * '''Emits when''' the Future returned by the provided function finishes for the next element in sequence
+   *
+   * '''Backpressures when''' the number of futures reaches the configured parallelism and the downstream
+   * backpressures
+   *
+   * '''Completes when''' upstream completes and all futures have been completed and all elements have been emitted
+   *
+   * '''Cancels when''' downstream cancels
+   *
+   * @since 1.1.0
+   * @see [[#mapAsync]]
+   * @see [[#mapAsyncPartitionedUnordered]]
+   */
+  def mapAsyncPartitioned[T, P](
+      parallelism: Int,
+      partitioner: function.Function[Out, P],
+      f: function.Function2[Out, P, CompletionStage[T]]): javadsl.Source[T, Mat] =
+    new Source(delegate.mapAsyncPartitioned(parallelism)(partitioner(_))(f(_, _).asScala))
+
+  /**
+   * Transforms this stream. Works very similarly to [[#mapAsyncUnordered]] but with an additional
+   * partition step before the transform step. The transform function receives the an individual
+   * stream entry and the calculated partition value for that entry.The max parallelism of per partition is 1.
+   *
+   * The function `partitioner` is always invoked on the elements in the order they arrive.
+   * The function `f` is always invoked on the elements which in the same partition in the order they arrive.
+   *
+   * If the function `partitioner` or `f` throws an exception or if the [[CompletionStage]] is completed
+   * with failure and the supervision decision is [[pekko.stream.Supervision.Stop]]
+   * the stream will be completed with failure, otherwise the stream continues and the current element is dropped.
+   *
+   * Adheres to the [[ActorAttributes.SupervisionStrategy]] attribute.
+   *
+   * '''Emits when''' the Future returned by the provided function finishes and downstream available.
+   *
+   * '''Backpressures when''' the number of futures reaches the configured parallelism and the downstream
+   * backpressures
+   *
+   * '''Completes when''' upstream completes and all futures have been completed and all elements have been emitted
+   *
+   * '''Cancels when''' downstream cancels
+   *
+   * @since 1.1.0
+   * @see [[#mapAsyncUnordered]]
+   * @see [[#mapAsyncPartitioned]]
+   */
+  def mapAsyncPartitionedUnordered[T, P](
+      parallelism: Int,
+      partitioner: function.Function[Out, P],
+      f: function.Function2[Out, P, CompletionStage[T]]): javadsl.Source[T, Mat] =
+    new Source(delegate.mapAsyncPartitionedUnordered(parallelism)(partitioner(_))(f(_, _).asScala))
 
   /**
    * Transform this stream by applying the given function to each of the elements

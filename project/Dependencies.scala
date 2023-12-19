@@ -22,23 +22,22 @@ object Dependencies {
     .withRank(KeyRanks.Invisible) // avoid 'unused key' warning
 
   val junitVersion = "4.13.2"
-  val slf4jVersion = "1.7.36"
+  val junit5Version = "5.10.1"
+  val slf4jVersion = "2.0.9"
   // check agrona version when updating this
   val aeronVersion = "1.42.1"
   // needs to be inline with the aeron version, check
   // https://github.com/real-logic/aeron/blob/1.x.y/build.gradle
   val agronaVersion = "1.19.2"
-  val nettyVersion = "4.1.97.Final"
-  val protobufJavaVersion = "3.19.6"
-  val logbackVersion = "1.2.11"
+  val nettyVersion = "4.1.104.Final"
+  val protobufJavaVersion = "3.20.3"
+  val logbackVersion = "1.3.14"
 
   val jacksonCoreVersion = "2.14.3"
   val jacksonDatabindVersion = jacksonCoreVersion
 
   val scala212Version = "2.12.18"
   val scala213Version = "2.13.12"
-  // To get the fix for https://github.com/lampepfl/dotty/issues/13106
-  // and restored static forwarders
   val scala3Version = "3.3.1"
   val allScalaVersions = Seq(scala213Version, scala212Version, scala3Version)
 
@@ -46,10 +45,9 @@ object Dependencies {
 
   val sslConfigVersion = "0.6.1"
 
-  val scalaTestVersion = "3.2.14"
-  val scalaTestBaseVersion = "3.2.10"
-  val scalaTestScalaCheckVersion = "1-16"
-  val scalaCheckVersion = "1.15.1"
+  val scalaTestVersion = "3.2.17"
+  val scalaTestScalaCheckVersion = "1-17"
+  val scalaCheckVersion = "1.17.0"
 
   val Versions =
     Seq(crossScalaVersions := allScalaVersions, scalaVersion := allScalaVersions.head,
@@ -58,7 +56,7 @@ object Dependencies {
   object Compile {
     // Compile
 
-    val config = "com.typesafe" % "config" % "1.4.2"
+    val config = "com.typesafe" % "config" % "1.4.3"
     val `netty-transport` = "io.netty" % "netty-transport" % nettyVersion
     val `netty-handler` = "io.netty" % "netty-handler" % nettyVersion
 
@@ -73,7 +71,7 @@ object Dependencies {
 
     val sigar = "org.fusesource" % "sigar" % "1.6.4"
 
-    val jctools = "org.jctools" % "jctools-core" % "3.3.0"
+    val jctools = "org.jctools" % "jctools-core" % "4.0.2"
 
     // reactive streams
     val reactiveStreams = "org.reactivestreams" % "reactive-streams" % reactiveStreamsVersion
@@ -83,9 +81,10 @@ object Dependencies {
       "com.typesafe" %% "ssl-config-core" % sslConfigVersion
     }
 
-    val lmdb = "org.lmdbjava" % "lmdbjava" % "0.7.0"
+    val lmdb = "org.lmdbjava" % "lmdbjava" % "0.9.0"
 
     val junit = "junit" % "junit" % junitVersion
+    val junit5 = "org.junit.jupiter" % "junit-jupiter-engine" % junit5Version
 
     // For Java 8 Conversions
     val java8Compat = Def.setting {
@@ -97,7 +96,7 @@ object Dependencies {
     // Added explicitly for when artery tcp is used
     val agrona = "org.agrona" % "agrona" % agronaVersion
 
-    val asnOne = ("com.hierynomus" % "asn-one" % "0.5.0").exclude("org.slf4j", "slf4j-api")
+    val asnOne = ("com.hierynomus" % "asn-one" % "0.6.0").exclude("org.slf4j", "slf4j-api")
 
     val jacksonCore = Def.setting {
       "com.fasterxml.jackson.core" % "jackson-core" % jacksonCoreVersion
@@ -129,16 +128,17 @@ object Dependencies {
 
     object Docs {
       val sprayJson = "io.spray" %% "spray-json" % "1.3.6" % Test
-      val gson = "com.google.code.gson" % "gson" % "2.9.1" % Test
+      val gson = "com.google.code.gson" % "gson" % "2.10.1" % Test
     }
 
     object TestDependencies {
-      val bcpkix = "org.bouncycastle" % "bcpkix-jdk15on" % "1.68" % Test
+      val bcpkix = "org.bouncycastle" % "bcpkix-jdk18on" % "1.77" % Test
       val commonsMath = "org.apache.commons" % "commons-math" % "2.2" % Test
-      val commonsIo = "commons-io" % "commons-io" % "2.11.0" % Test
-      val commonsCodec = "commons-codec" % "commons-codec" % "1.15" % Test
-      val commonsCompress = "org.apache.commons" % "commons-compress" % "1.23.0" % Test
+      val commonsIo = "commons-io" % "commons-io" % "2.15.1" % Test
+      val commonsCodec = "commons-codec" % "commons-codec" % "1.16.0" % Test
+      val commonsCompress = "org.apache.commons" % "commons-compress" % "1.25.0" % Test
       val junit = "junit" % "junit" % junitVersion % Test
+      val junit5 = "org.junit.jupiter" % "junit-jupiter-engine" % junit5Version % Test
       val httpClient = "org.apache.httpcomponents" % "httpclient" % "4.5.14" % Test
 
       val logback = Compile.logback % Test
@@ -152,24 +152,24 @@ object Dependencies {
         "org.scalatestplus" %% "junit-4-13" % (scalaTestVersion + ".0") % Test
       }
       val scalatestTestNG = Def.setting {
-        "org.scalatestplus" %% "testng-6-7" % (scalaTestBaseVersion + ".0") % Test
+        "org.scalatestplus" %% "testng-7-5" % (scalaTestVersion + ".0") % Test
       }
       val scalatestScalaCheck = Def.setting {
         "org.scalatestplus" %% s"scalacheck-$scalaTestScalaCheckVersion" % (scalaTestVersion + ".0") % Test
       }
       val scalatestMockito = Def.setting {
-        "org.scalatestplus" %% "mockito-3-4" % (scalaTestBaseVersion + ".0") % Test
+        "org.scalatestplus" %% "mockito-4-11" % (scalaTestVersion + ".0") % Test
       }
 
       val pojosr = "com.googlecode.pojosr" % "de.kalpatec.pojosr.framework" % "0.2.1" % Test
       val tinybundles = "org.ops4j.pax.tinybundles" % "tinybundles" % "3.0.0" % Test
-      val log4j = "log4j" % "log4j" % "1.2.17" % Test
 
       // in-memory filesystem for file related tests
-      val jimfs = "com.google.jimfs" % "jimfs" % "1.1" % Test
+      val jimfs = "com.google.jimfs" % "jimfs" % "1.3.0" % Test
 
       // docker utils
-      val dockerClient = "com.spotify" % "docker-client" % "8.16.0" % Test
+      val dockerClient = ("com.spotify" % "docker-client" % "8.16.0" % Test)
+        .exclude("org.bouncycastle", "bcpkix-jdk15on")
 
       val jackson = Def.setting {
         Seq(
@@ -182,8 +182,8 @@ object Dependencies {
       }
 
       // metrics, measurements, perf testing
-      val metrics = "io.dropwizard.metrics" % "metrics-core" % "4.2.10" % Test
-      val metricsJvm = "io.dropwizard.metrics" % "metrics-jvm" % "4.2.10" % Test
+      val metrics = "io.dropwizard.metrics" % "metrics-core" % "4.2.23" % Test
+      val metricsJvm = "io.dropwizard.metrics" % "metrics-jvm" % "4.2.23" % Test
       val latencyUtils = "org.latencyutils" % "LatencyUtils" % "2.0.3" % Test
       val hdrHistogram = "org.hdrhistogram" % "HdrHistogram" % "2.1.12" % Test
       val metricsAll = Seq(metrics, metricsJvm, latencyUtils, hdrHistogram)
@@ -204,7 +204,7 @@ object Dependencies {
 
     object Provided {
       // TODO remove from "test" config
-      val sigarLoader = "io.kamon" % "sigar-loader" % "1.6.6-rev002" % "optional;provided;test"
+      val sigarLoader = "io.kamon" % "sigar-loader" % "1.6.6" % "optional;provided;test"
 
       val activation = "com.sun.activation" % "javax.activation" % "1.2.0" % "provided;test"
 
@@ -213,6 +213,7 @@ object Dependencies {
       val levelDBNative = "org.fusesource.leveldbjni" % "leveldbjni-all" % "1.8" % "optional;provided"
 
       val junit = Compile.junit % "optional;provided;test"
+      val junit5 = Compile.junit5 % "optional;provided;test"
 
       val scalatest = Def.setting { "org.scalatest" %% "scalatest" % scalaTestVersion % "optional;provided;test" }
 
@@ -266,6 +267,7 @@ object Dependencies {
   val actorTestkitTyped = l ++= Seq(
     Provided.logback,
     Provided.junit,
+    Provided.junit5,
     Provided.scalatest.value,
     TestDependencies.scalatestJUnit.value)
 
