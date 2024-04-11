@@ -44,7 +44,7 @@ private[persistence] object JournalProtocol {
    * Request to write messages.
    *
    * @param messages messages to be written.
-   * @param persistentActor write requestor.
+   * @param persistentActor write requester.
    */
   final case class WriteMessages(
       messages: immutable.Seq[PersistentEnvelope],

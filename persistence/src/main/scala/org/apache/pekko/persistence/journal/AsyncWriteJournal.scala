@@ -72,10 +72,13 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
 
     {
       case WriteMessages(messages, persistentActor, actorInstanceId) =>
-        val cctr = resequencerCounter
+        // 接收到写入的时候，先拿到重定序的 counter
+      val cctr = resequencerCounter
+        // 将 message 的大小（里面还有批量）加到 counter 里
         resequencerCounter += messages.foldLeft(1)((acc, m) => acc + m.size)
-
+        // 计算原子写入的大小
         val atomicWriteCount = messages.count(_.isInstanceOf[AtomicWrite])
+        // 将原子写入的消息攒批成一批
         val prepared = Try(preparePersistentBatch(messages))
         val writeResult = (prepared match {
           case Success(prep) if prep.isEmpty =>
@@ -308,6 +311,9 @@ private[persistence] object AsyncWriteJournal {
   final case class Desequenced(msg: Any, snr: Long, target: ActorRef, sender: ActorRef)
       extends NoSerializationVerificationNeeded
 
+  /**
+   * 重定序
+   */
   class Resequencer extends Actor {
     import scala.collection.mutable.Map
 
